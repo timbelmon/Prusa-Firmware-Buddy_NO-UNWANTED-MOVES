@@ -1651,7 +1651,7 @@
      * Park the nozzle after print is finished
      * When disabled, similar functionality can be still achieved with slicer "End G-code"
      */
-    #define PARK_HEAD_ON_PRINT_FINISH
+    //#define PARK_HEAD_ON_PRINT_FINISH
 #endif
 
 /**
