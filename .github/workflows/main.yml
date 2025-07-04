@@ -14,25 +14,26 @@ jobs:
     outputs:
       changed: ${{ steps.compare.outputs.changed }}
     steps:
-      - name: Checkout your fork
+      - name: Checkout fork's master
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: master
 
-      - name: Add & fetch Prusa upstream
+      - name: Add upstream remote & fetch
         run: |
           git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
           git fetch upstream master
 
-      - name: Compare HEAD vs upstream/master
+      - name: Check for upstream changes
         id: compare
         run: |
-          LOCAL=$(git rev-parse HEAD)
-          UPSTREAM=$(git rev-parse upstream/master)
-          if [ "$LOCAL" != "$UPSTREAM" ]; then
+          COUNT=$(git rev-list HEAD..upstream/master --count)
+          if [ "$COUNT" -gt 0 ]; then
+            echo "found $COUNT upstream commits"
             echo "changed=true" >> $GITHUB_OUTPUT
           else
+            echo "no new upstream commits"
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
@@ -41,26 +42,19 @@ jobs:
     if: needs.check-upstream.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      # 1. Checkout & sync
-      - uses: actions/checkout@v4
+      - name: Checkout & sync
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: master
 
-      - name: Add & fetch upstream
-        run: |
-          git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
-          git fetch upstream
-
       - name: Merge upstream/master
         run: |
-          git checkout master
+          git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
+          git fetch upstream master
           git merge upstream/master --no-edit
+          git push origin master
 
-      - name: Push merge back
-        run: git push origin master
-
-      # 2. System toolchain
       - name: Install ARM toolchain & build tools
         run: |
           sudo apt-get update
@@ -70,7 +64,6 @@ jobs:
             binutils-arm-none-eabi \
             libnewlib-arm-none-eabi
 
-      # 3. Python + deps
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -79,49 +72,39 @@ jobs:
       - name: Install Python dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
-      # 4. Build without switching into .venv
       - name: Build MK4 (release)
         env:
           BUDDY_NO_VIRTUALENV: '1'
         run: python utils/build.py --preset mk4 --build-type release
 
-      # 5. Store the raw artifact (optional, for debugging)
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: PrusaBuddy-MK4-release
           path: build/products/**
 
-      # 6. Create and push a short‐SHA tag
       - name: Create annotated tag
         id: tag_step
         run: |
-          # Configure Git identity for the runner
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-
-          # Build the short SHA tag
           SHORT="${GITHUB_SHA::7}"
           TAG="v-${SHORT}"
-
-          # Tag, push, and expose for the next step
           git tag -a "$TAG" -m "Automated release for ${GITHUB_SHA}"
           git push origin "$TAG"
           echo "short_tag=${TAG}" >> $GITHUB_OUTPUT
 
-      # 7. Publish the GitHub Release on that same tag
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag_step.outputs.short_tag }}
-          name:    "Firmware build #${{ github.run_number }}"
-          body:    |
+          name: "Firmware build #${{ github.run_number }}"
+          body: |
             ⚙️ Automated build of Prusa MK4 firmware with unwanted moves removed. (Untested)  
             • Commit: `${{ github.sha }}`  
             • Run #: `${{ github.run_number }}`
 
-      # 8. Attach the firmware `.bbf` to the release
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
