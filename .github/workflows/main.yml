@@ -8,42 +8,61 @@ on:
 jobs:
   sync-build:
     runs-on: ubuntu-latest
+
     steps:
+      # 1. Checkout
       - name: Checkout fork
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: master
 
-      - name: Add official upstream
+      # 2. Upstream merge
+      - name: Add & fetch prusa3d upstream
         run: |
           git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
           git fetch upstream
-
-      - name: Merge upstream
+      - name: Merge upstream/master
         run: |
           git checkout master
           git merge upstream/master --no-edit
-
-      - name: Push to origin
+      - name: Push merged master
         run: git push origin master
 
+      # 3. Install system-level build tools
+      - name: Install ARM toolchain & build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            make \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi
+
+      # 4. Set up Python & Python deps
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-
-      - name: Install build requirements
+      - name: Install Python requirements
         run: python -m pip install -r requirements.txt
 
-      - name: Build MK4
+      # 5. (Optional) Show workspace contents for debug
+      - name: List all files
+        run: ls -R .
+
+      # 6. Build MK4 in release mode
+      - name: Build MK4 (release)
         run: python utils/build.py --preset mk4 --build-type release
 
+      # 7. Upload artifact
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PrusaBuddy-MK4-NO_UNWATED_MOVES
+          name: PrusaBuddy-MK4-release
           path: build/products/**
 
+      # 8. GitHub Release
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v1
