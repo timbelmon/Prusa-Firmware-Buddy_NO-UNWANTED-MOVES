@@ -1,5 +1,8 @@
 name: Sync, Build & Deploy MK4
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   schedule:
@@ -53,21 +56,36 @@ jobs:
           BUDDY_NO_VIRTUALENV: '1'
         run: python utils/build.py --preset mk4 --build-type release
 
-      # 5. Artifacts & release
+      # 5. Store the raw artifact (optional, for debugging)
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: PrusaBuddy-MK4-release
           path: build/products/**
 
-      - id: create_release
-        name: Create GitHub Release
+      # 6. Create and push a short‐SHA tag
+      - name: Create annotated tag
+        id: tag_step
+        run: |
+          SHORT="${GITHUB_SHA::7}"
+          TAG="v-${SHORT}"
+          git tag -a "$TAG" -m "Automated release for ${GITHUB_SHA}"
+          git push origin "$TAG"
+          echo "short_tag=${TAG}" >> $GITHUB_OUTPUT
+
+      # 7. Publish the GitHub Release on that same tag
+      - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.sha }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.tag_step.outputs.short_tag }}
+          name:    "Firmware build #${{ github.run_number }}"
+          body:    |
+            ⚙️ Automated build of Prusa MK4 firmware with unwanted moves removed. (Untested)  
+            • Commit: `${{ github.sha }}`  
+            • Run #: `${{ github.run_number }}`
 
+      # 8. Attach the firmware `.bbf` to the release
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         with:
