@@ -67,11 +67,19 @@ jobs:
       - name: Create annotated tag
         id: tag_step
         run: |
+          # Configure Git identity for the runner
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+          # Build the short SHA tag
           SHORT="${GITHUB_SHA::7}"
           TAG="v-${SHORT}"
+
+          # Tag, push, and expose for the next step
           git tag -a "$TAG" -m "Automated release for ${GITHUB_SHA}"
           git push origin "$TAG"
           echo "short_tag=${TAG}" >> $GITHUB_OUTPUT
+
 
       # 7. Publish the GitHub Release on that same tag
       - name: Create GitHub Release
