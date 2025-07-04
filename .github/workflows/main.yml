@@ -98,6 +98,6 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/products/**/*.bbf
+          asset_path: build/products/mk4_release_boot.bbf
           asset_name: PrusaBuddy-MK4-${{ github.sha }}.bbf
           asset_content_type: application/octet-stream
