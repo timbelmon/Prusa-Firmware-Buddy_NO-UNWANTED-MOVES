@@ -9,7 +9,36 @@ on:
     - cron: '0 2 * * *'    # 02:00 UTC / 04:00 Berlin
 
 jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+    steps:
+      - name: Checkout your fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Add & fetch Prusa upstream
+        run: |
+          git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
+          git fetch upstream master
+
+      - name: Compare HEAD vs upstream/master
+        id: compare
+        run: |
+          LOCAL=$(git rev-parse HEAD)
+          UPSTREAM=$(git rev-parse upstream/master)
+          if [ "$LOCAL" != "$UPSTREAM" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
   sync-build:
+    needs: check-upstream
+    if: needs.check-upstream.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
       # 1. Checkout & sync
@@ -80,7 +109,6 @@ jobs:
           git push origin "$TAG"
           echo "short_tag=${TAG}" >> $GITHUB_OUTPUT
 
-
       # 7. Publish the GitHub Release on that same tag
       - name: Create GitHub Release
         id: create_release
@@ -101,5 +129,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: build/products/mk4_release_boot.bbf
-          asset_name: PrusaBuddy-MK4-${{ github.sha }}.bbf
+          asset_name: mk4_release_boot.bbf
           asset_content_type: application/octet-stream
