@@ -54,6 +54,11 @@ jobs:
           fetch-depth: 0
           ref: master
 
+      - name: Set up Git user identity
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
       - name: Merge upstream/master
         run: |
           git remote add upstream https://github.com/prusa3d/Prusa-Firmware-Buddy.git
